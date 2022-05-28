@@ -28,6 +28,10 @@ def pose_retr(poses, dx, ii):
     return poses.retr(scatter_sum(dx, ii, dim=1, dim_size=poses.shape[1]))
 
 
+'''
+    DBA layer
+        Differentiable bundle adjustment layer
+'''
 def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
     """ Full Bundle Adjustment """
 

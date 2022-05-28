@@ -2,6 +2,11 @@ import torch
 import torch.nn as nn
 
 
+'''
+    Update operator
+        Key contribution of DROID-SLAM, GRU-based module
+        TODO: Why not transformer?
+'''
 class ConvGRU(nn.Module):
     def __init__(self, h_planes=128, i_planes=128):
         super(ConvGRU, self).__init__()

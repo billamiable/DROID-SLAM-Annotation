@@ -2,6 +2,10 @@ import torch
 import torch.nn.functional as F
 import geom.projective_ops as pops
 
+'''
+    BA Solver
+        CholeskySolver, similar to the one in g2o
+'''
 class CholeskySolver(torch.autograd.Function):
     @staticmethod
     def forward(ctx, H, b):

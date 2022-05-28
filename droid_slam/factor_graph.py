@@ -194,6 +194,10 @@ class FactorGraph:
         self.rm_factors(m, store=False)
 
 
+    '''
+        Update operator
+            Key contribution of DROID-SLAM
+    '''
     @torch.cuda.amp.autocast(enabled=True)
     def update(self, t0=None, t1=None, itrs=2, use_inactive=False, EP=1e-7, motion_only=False):
         """ run update operator on factor graph """
@@ -295,6 +299,10 @@ class FactorGraph:
 
             self.video.dirty[:t] = True
 
+    '''
+        Covisibility graph
+            TODO: Nearby keyframes or frames?
+    '''
     def add_neighborhood_factors(self, t0, t1, r=3):
         """ add edges between neighboring frames within radius r """
 

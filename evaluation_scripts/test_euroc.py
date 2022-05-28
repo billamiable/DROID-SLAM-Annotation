@@ -108,6 +108,7 @@ if __name__ == '__main__':
     droid = Droid(args)
     time.sleep(5)
 
+    # Entry point for the SLAM system
     for (t, image, intrinsics) in tqdm(image_stream(args.datapath, stereo=args.stereo, stride=2)):
         droid.track(t, image, intrinsics=intrinsics)
 

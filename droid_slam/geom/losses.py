@@ -6,6 +6,10 @@ from .graph_utils import graph_to_edge_list
 from .projective_ops import projective_transform
 
 
+'''
+    Loss definition
+        Depth loss and pose loss
+'''
 def pose_metrics(dE):
     """ Translation/Rotation/Scaling metrics from Sim3 """
     t, q, s = dE.data.split([3, 4, 1], -1)

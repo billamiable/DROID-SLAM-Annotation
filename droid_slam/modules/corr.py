@@ -20,6 +20,10 @@ class CorrSampler(torch.autograd.Function):
         return grad_volume, None, None
 
 
+'''
+    Feature matching
+        Adopted from RAFT, pairwise calculation for frames
+'''
 class CorrBlock:
     def __init__(self, fmap1, fmap2, num_levels=4, radius=3):
         self.num_levels = num_levels

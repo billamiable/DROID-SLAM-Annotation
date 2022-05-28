@@ -151,6 +151,10 @@ class DroidNet(nn.Module):
         self.update = UpdateModule()
 
 
+    '''
+        Feature extraction
+            Simple NN layer
+    '''
     def extract_features(self, images):
         """ run feeature extraction networks """
 
@@ -169,6 +173,10 @@ class DroidNet(nn.Module):
         return fmaps, net, inp
 
 
+    '''
+        Frame-to-frame tracking
+            TODO: Correlation volume used?
+    '''
     def forward(self, Gs, images, disps, intrinsics, graph=None, num_steps=12, fixedp=2):
         """ Estimates SE3 or Sim3 between pair of frames """
 
@@ -185,6 +193,10 @@ class DroidNet(nn.Module):
         ht, wd = images.shape[-2:]
         coords0 = pops.coords_grid(ht//8, wd//8, device=images.device)
         
+        '''
+            Projection-based matching
+                TODO: Is this the implementation?
+        '''
         coords1, _ = pops.projective_transform(Gs, disps, intrinsics, ii, jj)
         target = coords1.clone()
 

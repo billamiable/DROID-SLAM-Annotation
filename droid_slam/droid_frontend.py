@@ -10,6 +10,10 @@ class DroidFrontend:
     def __init__(self, net, video, args):
         self.video = video
         self.update_op = net.update
+        '''
+            Local Bundle Adjustment
+                TODO: Factor graph for local BA?
+        '''
         self.graph = FactorGraph(video, net.update, max_factors=48, upsample=args.upsample)
 
         # local optimization window
@@ -32,6 +36,10 @@ class DroidFrontend:
         self.frontend_thresh = args.frontend_thresh
         self.frontend_radius = args.frontend_radius
 
+    '''
+        Tracking
+            Frontend steps other than initialization.
+    '''
     def __update(self):
         """ add edges, perform update """
 
@@ -50,10 +58,18 @@ class DroidFrontend:
         for itr in range(self.iters1):
             self.graph.update(None, None, use_inactive=True)
 
+        '''
+            Initialization
+                TODO: Directly use pose from last frame or apply motion model?
+        '''
         # set initial pose for next frame
         poses = SE3(self.video.poses)
         d = self.video.distance([self.t1-3], [self.t1-2], beta=self.beta, bidirectional=True)
 
+        '''
+            Add & Remove redundant keyframes
+                TODO: is this the right place?
+        '''
         if d.item() < self.keyframe_thresh:
             self.graph.rm_keyframe(self.t1 - 2)
             
@@ -65,13 +81,17 @@ class DroidFrontend:
             for itr in range(self.iters2):
                 self.graph.update(None, None, use_inactive=True)
 
-        # set pose for next itration
+        # set pose for next iteration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
 
         # update visualization
         self.video.dirty[self.graph.ii.min():self.t1] = True
 
+    '''
+        Initialization
+            First stage when the SLAM starts.
+    '''
     def __initialize(self):
         """ initialize the SLAM system """
 

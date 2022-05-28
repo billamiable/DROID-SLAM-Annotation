@@ -1,6 +1,8 @@
 #include <torch/extension.h>
 #include <vector>
 
+
+// TODO: offload frequent and heavy computation to GPU?
 // CUDA forward declarations
 std::vector<torch::Tensor> projective_transform_cuda(
   torch::Tensor poses,
@@ -84,7 +86,10 @@ std::vector<torch::Tensor> altcorr_cuda_backward(
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CONTIGUOUS(x)
 
+/*
+    Bundle Adjustment
 
+*/
 std::vector<torch::Tensor> ba(
     torch::Tensor poses,
     torch::Tensor disps,
@@ -117,6 +122,10 @@ std::vector<torch::Tensor> ba(
 }
 
 
+/*
+    Preprocessing:
+        Calculate frame-to-frame distance (optical flow) in advance.
+*/
 torch::Tensor frame_distance(
     torch::Tensor poses,
     torch::Tensor disps,
@@ -234,6 +243,10 @@ torch::Tensor depth_filter(
 }
 
 
+/*
+    This macro creates the entry point that will be invoked
+    when the Python interpreter imports an extension module.
+*/
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   // bundle adjustment kernels
   m.def("ba", &ba, "bundle adjustment");

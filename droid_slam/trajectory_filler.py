@@ -9,6 +9,10 @@ from droid_net import DroidNet
 import geom.projective_ops as pops
 
 
+'''
+    Non-keyframe optimization
+        Obtain optimized pose for every frame
+'''
 class PoseTrajectoryFiller:
     """ This class is used to fill in non-keyframe poses """
 

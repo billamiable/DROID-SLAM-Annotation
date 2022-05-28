@@ -9,6 +9,10 @@ from collections import OrderedDict
 from droid_net import cvx_upsample
 import geom.projective_ops as pops
 
+'''
+    Extend to Depth camera
+        TODO: is this the right place, doesn't see loss definition?
+'''
 class DepthVideo:
     def __init__(self, image_size=[480, 640], buffer=1024, stereo=False, device="cuda:0"):
                 

@@ -55,6 +55,10 @@ class ResidualBlock(nn.Module):
         return self.relu(x+y)
 
 
+'''
+    Feature extraction
+        Detailed network structure
+'''
 class BottleneckBlock(nn.Module):
     def __init__(self, in_planes, planes, norm_fn='group', stride=1):
         super(BottleneckBlock, self).__init__()

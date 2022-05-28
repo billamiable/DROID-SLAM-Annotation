@@ -23,6 +23,10 @@ class Droid:
         # store images, depth, poses, intrinsics (shared between processes)
         self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo)
 
+        '''
+            Preprocessing
+                Mannually select input before processing them, similar to RTAPMAP
+        '''
         # filter incoming frames so that there is enough motion
         self.filterx = MotionFilter(self.net, self.video, thresh=args.filter_thresh)
 
@@ -58,6 +62,7 @@ class Droid:
         self.net.load_state_dict(state_dict)
         self.net.to("cuda:0").eval()
 
+    # Entry point for SLAM system
     def track(self, tstamp, image, depth=None, intrinsics=None):
         """ main thread - update map """
 
@@ -68,6 +73,12 @@ class Droid:
             # local bundle adjustment
             self.frontend()
 
+            '''
+                Loop detection
+                    This should be a workaround for performance consideration.
+                    TODO: seems loop detection is not included, then when to perform global BA
+                    TODO: after enabling the following part, the system seems difficult to start
+            '''
             # global bundle adjustment
             # self.backend()
 
@@ -76,6 +87,11 @@ class Droid:
 
         del self.frontend
 
+        '''
+            Global BA
+                After disabling the following two steps, the accuracy will drop a lot
+                TODO: why do it twice with different iterations?
+        '''
         torch.cuda.empty_cache()
         print("#" * 32)
         self.backend(7)
