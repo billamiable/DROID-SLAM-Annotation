@@ -105,13 +105,16 @@ if __name__ == '__main__':
     print("Running evaluation on {}".format(args.datapath))
     print(args)
 
+    # Step1: load model
     droid = Droid(args)
     time.sleep(5)
 
     # Entry point for the SLAM system
     for (t, image, intrinsics) in tqdm(image_stream(args.datapath, stereo=args.stereo, stride=2)):
+        # Step2: track every input frame
         droid.track(t, image, intrinsics=intrinsics)
 
+    # Step3: return trajectory (actually performs two round final BA)
     traj_est = droid.terminate(image_stream(args.datapath, stride=1))
 
     ### run evaluation ###

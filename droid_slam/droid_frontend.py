@@ -59,7 +59,7 @@ class DroidFrontend:
             self.graph.update(None, None, use_inactive=True)
 
         '''
-            Initialization
+            Frame-to-frame tracking
                 TODO: Directly use pose from last frame or apply motion model?
         '''
         # set initial pose for next frame
@@ -67,8 +67,9 @@ class DroidFrontend:
         d = self.video.distance([self.t1-3], [self.t1-2], beta=self.beta, bidirectional=True)
 
         '''
-            Add & Remove redundant keyframes
-                TODO: is this the right place?
+            Remove redundant keyframes
+                Remove according to distance
+                TODO: which distance?
         '''
         if d.item() < self.keyframe_thresh:
             self.graph.rm_keyframe(self.t1 - 2)
@@ -91,6 +92,7 @@ class DroidFrontend:
     '''
         Initialization
             First stage when the SLAM starts.
+            TODO: understand implementation details
     '''
     def __initialize(self):
         """ initialize the SLAM system """
@@ -125,6 +127,7 @@ class DroidFrontend:
 
         self.graph.rm_factors(self.graph.ii < self.warmup-4, store=True)
 
+    # TODO: default setting for python to use __call__ func when the class obeject is called?
     def __call__(self):
         """ main update """
 
