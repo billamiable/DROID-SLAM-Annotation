@@ -301,21 +301,27 @@ class FactorGraph:
 
     '''
         Covisibility graph
-            TODO: Nearby keyframes or frames?
+            TODO: Neighbor frames according to time interval
     '''
     def add_neighborhood_factors(self, t0, t1, r=3):
         """ add edges between neighboring frames within radius r """
 
+        # constructing 2D matrix
         ii, jj = torch.meshgrid(torch.arange(t0,t1), torch.arange(t0,t1))
+        # flatten the 2D matrix into 1D tensor
         ii = ii.reshape(-1).to(dtype=torch.long, device=self.device)
         jj = jj.reshape(-1).to(dtype=torch.long, device=self.device)
 
         c = 1 if self.video.stereo else 0
 
+        # TODO: why ii and jj represents neighboring frames?
         keep = ((ii - jj).abs() > c) & ((ii - jj).abs() <= r)
         self.add_factors(ii[keep], jj[keep])
 
-    
+    '''
+        Covisibility graph
+            TODO: Proximity frames according to distance
+    '''
     def add_proximity_factors(self, t0=0, t1=0, rad=2, nms=2, beta=0.25, thresh=16.0, remove=False):
         """ add edges to the factor graph based on distance """
 

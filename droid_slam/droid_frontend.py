@@ -46,15 +46,19 @@ class DroidFrontend:
         self.count += 1
         self.t1 += 1
 
+        # Step1: TODO remove edges from factor graph
         if self.graph.corr is not None:
             self.graph.rm_factors(self.graph.age > self.max_age, store=True)
 
+        # Step2: add distance-based proximity edge to factor graph
         self.graph.add_proximity_factors(self.t1-5, max(self.t1-self.frontend_window, 0), 
             rad=self.frontend_radius, nms=self.frontend_nms, thresh=self.frontend_thresh, beta=self.beta, remove=True)
 
+        # Step3: TODO provide initial value for disparity
         self.video.disps[self.t1-1] = torch.where(self.video.disps_sens[self.t1-1] > 0, 
            self.video.disps_sens[self.t1-1], self.video.disps[self.t1-1])
 
+        # Step4: run multiple times of graph update
         for itr in range(self.iters1):
             self.graph.update(None, None, use_inactive=True)
 
@@ -62,8 +66,10 @@ class DroidFrontend:
             Frame-to-frame tracking
                 TODO: Directly use pose from last frame or apply motion model?
         '''
-        # set initial pose for next frame
+        # Step5: set initial pose for next frame
         poses = SE3(self.video.poses)
+
+        # Step6: remove redundant keyframes according to distance or update graph
         d = self.video.distance([self.t1-3], [self.t1-2], beta=self.beta, bidirectional=True)
 
         '''
@@ -82,17 +88,16 @@ class DroidFrontend:
             for itr in range(self.iters2):
                 self.graph.update(None, None, use_inactive=True)
 
-        # set pose for next iteration
+        # Step7: set pose for next iteration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
 
-        # update visualization
+        # Step8: update visualization
         self.video.dirty[self.graph.ii.min():self.t1] = True
 
     '''
         Initialization
             First stage when the SLAM starts.
-            TODO: understand implementation details
     '''
     def __initialize(self):
         """ initialize the SLAM system """
@@ -100,21 +105,28 @@ class DroidFrontend:
         self.t0 = 0
         self.t1 = self.video.counter.value
 
+        # Step1: add time-range-based neighbor edge into factor graph
         self.graph.add_neighborhood_factors(self.t0, self.t1, r=3)
 
+        # Step2: run multiple times of graph update
         for itr in range(8):
+            # only run one time for each iteration
+            # TODO use_inactive
             self.graph.update(1, use_inactive=True)
 
+        # Step3: add distance-based proximity edge into factor graph
         self.graph.add_proximity_factors(0, 0, rad=2, nms=2, thresh=self.frontend_thresh, remove=False)
 
+        # Step4: run multiple times of graph update again
         for itr in range(8):
             self.graph.update(1, use_inactive=True)
 
-
+        # Step5: provide initial value for pose and disparity
         # self.video.normalize()
         self.video.poses[self.t1] = self.video.poses[self.t1-1].clone()
         self.video.disps[self.t1] = self.video.disps[self.t1-4:self.t1].mean()
 
+        # Step6: post-processing after initialization
         # initialization complete
         self.is_initialized = True
         self.last_pose = self.video.poses[self.t1-1].clone()
@@ -125,17 +137,18 @@ class DroidFrontend:
             self.video.ready.value = 1
             self.video.dirty[:self.t1] = True
 
+        # Step7: TODO remove edges from factor graph
         self.graph.rm_factors(self.graph.ii < self.warmup-4, store=True)
 
     # TODO: default setting for python to use __call__ func when the class obeject is called?
     def __call__(self):
         """ main update """
 
-        # do initialization
+        # Step1: do initialization
         if not self.is_initialized and self.video.counter.value == self.warmup:
             self.__initialize()
             
-        # do update
+        # Step2: do update
         elif self.is_initialized and self.t1 < self.video.counter.value:
             self.__update()
 
