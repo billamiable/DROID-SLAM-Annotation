@@ -93,6 +93,10 @@ def actp(Gij, X0, jacobian=False):
 
     return X1, None
 
+'''
+    Projection-based matching
+        TODO: Jacobian?
+'''
 def projective_transform(poses, depths, intrinsics, ii, jj, jacobian=False, return_depth=False):
     """ map points from ii->jj """
 
@@ -124,6 +128,10 @@ def projective_transform(poses, depths, intrinsics, ii, jj, jacobian=False, retu
 
     return x1, valid
 
+'''
+    Compute optical flow from optical flow
+        TODO: detailed implementation and multi-view geometry
+'''
 def induced_flow(poses, disps, intrinsics, ii, jj):
     """ optical flow induced by camera motion """
 
