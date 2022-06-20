@@ -149,7 +149,8 @@ class UpdateModule(nn.Module):
         net = net.view(*output_dim)
 
         if ii is not None:
-            # Step5: TODO what are eta and upmask (mask for upsampling)? what's self.agg?
+            # Step5: TODO obtain 8*8 mask for inverse depth upsampling. what's eta and self.agg?
+            # eta - pixel damping factor?
             eta, upmask = self.agg(net, ii.to(net.device))
             return net, delta, weight, eta, upmask
 
