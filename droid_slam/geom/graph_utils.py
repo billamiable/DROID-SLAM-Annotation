@@ -6,10 +6,15 @@ from collections import OrderedDict
 import lietorch
 from data_readers.rgbd_utils import compute_distance_matrix_flow, compute_distance_matrix_flow2
 
-
+'''
+    Frame-to-frame edges construction
+        Obtain which pairs of frames that are correlated
+'''
 def graph_to_edge_list(graph):
     ii, jj, kk = [], [], []
+    # s - counter, u - index
     for s, u in enumerate(graph):
+        # v - nearby index, u - index
         for v in graph[u]:
             ii.append(u)
             jj.append(v)
@@ -36,10 +41,11 @@ def neighbourhood_graph(n, r):
 
 '''
     Covisibility graph
-        Detailed implementation
+        Graph data structure - dict { index (from pose): nearby indices list }
 '''
 def build_frame_graph(poses, disps, intrinsics, num=16, thresh=24.0, r=2):
     """ construct a frame graph between co-visible frames """
+    # TODO print poses shape, N represents the number of frames?
     N = poses.shape[1]
     poses = poses[0].cpu().numpy()
     disps = disps[0][:,3::8,3::8].cpu().numpy()

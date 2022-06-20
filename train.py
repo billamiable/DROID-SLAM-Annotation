@@ -40,7 +40,7 @@ def show_image(image):
     cv2.imshow('image', image / 255.0)
     cv2.waitKey()
 
-# TODO: No preprocessing step?
+# TODO: No preprocessing step? detailed dataloader implementation?
 def train(gpu, args):
     """ Test to make sure project transform correctly maps points """
 

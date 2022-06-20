@@ -40,7 +40,7 @@ def upsample_disp(disp, mask):
     mask = mask.view(batch*num, -1, ht, wd)
     return cvx_upsample(disp, mask).view(batch, num, 8*ht, 8*wd)
 
-
+# TODO GraphAgg?
 class GraphAgg(nn.Module):
     def __init__(self):
         super(GraphAgg, self).__init__()
@@ -110,7 +110,7 @@ class UpdateModule(nn.Module):
 
     '''
         Update Operator
-            Core design in RAFT
+            Core design in RAFT, mimics the steps of an optimization algorithm
     '''
     def forward(self, net, inp, corr, flow=None, ii=None, jj=None):
         """ RaftSLAM update operator """
@@ -130,10 +130,14 @@ class UpdateModule(nn.Module):
         corr = self.corr_encoder(corr)
         flow = self.flow_encoder(flow)
 
-        # Step2: use gru module to perform iterative update and obtain updated optical flow (correspondence)
+        '''
+            ConvGRU Module
+                Gated activation unit based on the GRU cell
+        '''
+        # Step2: use gru module to perform iterative update and obtain updated hidden state
         net = self.gru(net, inp, corr, flow)
 
-        # Step3: TODO special design - gated activation unit?
+        # Step3: pass updated hidden state to conv layers to predict the flow update (delta_flow)
         ### update variables ###
         delta = self.delta(net).view(*output_dim)
         weight = self.weight(net).view(*output_dim)
@@ -145,7 +149,7 @@ class UpdateModule(nn.Module):
         net = net.view(*output_dim)
 
         if ii is not None:
-            # Step5: TODO obtain eta and upmask?
+            # Step5: TODO what are eta and upmask (mask for upsampling)? what's self.agg?
             eta, upmask = self.agg(net, ii.to(net.device))
             return net, delta, weight, eta, upmask
 
@@ -172,7 +176,6 @@ class DroidNet(nn.Module):
     '''
         Feature extraction
             Simple NN layer
-            TODO what is inp?
     '''
     def extract_features(self, images):
         """ run feature extraction networks """
@@ -199,7 +202,7 @@ class DroidNet(nn.Module):
     def forward(self, Gs, images, disps, intrinsics, graph=None, num_steps=12, fixedp=2):
         """ Estimates SE3 or Sim3 between pair of frames """
 
-        # Step1: TODO obtain keyframe and optical flow distance from graph
+        # Step1: obtain correlated pairs of frames from graph based on optical flow distance
         u = keyframe_indicies(graph)
         ii, jj, kk = graph_to_edge_list(graph)
 
@@ -207,24 +210,27 @@ class DroidNet(nn.Module):
         jj = jj.to(device=images.device, dtype=torch.long)
 
         # Step2: extract features from images
-        # feature map from feature excoder and context coder, TODO inp?
+        # feature map from feature excoder (fmaps) and context coder (net), latent hidden state (inp)
         fmaps, net, inp = self.extract_features(images)
         net, inp = net[:,ii], inp[:,ii]
 
-        # Step3: construct 4D correlation volumes (including correlation pyramid inside)
+        # Step3: construct 4D correlation volumes to obtain correlation pyramid
+        # TODO print shape, seems only correlated ones are involved for constructing 4D cost volume?
         corr_fn = CorrBlock(fmaps[:,ii], fmaps[:,jj], num_levels=4, radius=3)
 
+        # Step4: use projection-based matching and lookup operator to obtain initial correspondences
+        ht, wd = images.shape[-2:]
+        # (x, y) for coords0 and coords1
+        coords0 = pops.coords_grid(ht//8, wd//8, device=images.device)
         '''
             Loopup Operator
                 TODO operate on multi-level correlation pyramid?
         '''
-        # Step4: define lookup operator to obtain correspondences using projection-based matching
-        ht, wd = images.shape[-2:]
-        coords0 = pops.coords_grid(ht//8, wd//8, device=images.device)
         coords1, _ = pops.projective_transform(Gs, disps, intrinsics, ii, jj)
         target = coords1.clone()
 
         # Step5: feed prepared inputs to major part of network
+        # Outputs: pose, inverse depth, residual error
         Gs_list, disp_list, residual_list = [], [], []
         for step in range(num_steps):
             Gs = Gs.detach()
@@ -232,18 +238,19 @@ class DroidNet(nn.Module):
             coords1 = coords1.detach()
             target = target.detach()
 
-            # Step5.1: TODO extract motion features
+            # Step5.1: extract motion-based flow features
             corr = corr_fn(coords1)
             resd = target - coords1
             flow = coords1 - coords0
 
-            motion = torch.cat([flow, resd], dim=-1)
-            motion = motion.permute(0,1,4,2,3).clamp(-64.0, 64.0)
+            motion = torch.cat([flow, resd], dim=-1) # concat
+            motion = motion.permute(0,1,4,2,3).clamp(-64.0, 64.0) # rearrange ordering & limit value within range
 
-            # Step5.2: feed into ConvGRU module to get corrected correspondence and its confidence weight
+            # Step5.2: feed into GRU to get correction value for correspondence (delta) and confidence (weight)
             net, delta, weight, eta, upmask = \
                 self.update(net, inp, corr, motion, ii, jj)
 
+            # Step5.3: get corrected corrspondence with initial correspondence and correction term
             target = coords1 + delta
 
             for i in range(2):
@@ -251,17 +258,17 @@ class DroidNet(nn.Module):
                     Deep Bundle Adjustment Layer
                         Core design in DRIOD-SLAM
                 '''
-                # Step5.3: feed into DBA layer to obtain delta value for pose and inverse depth
+                # Step5.4: feed into DBA layer to obtain delta value for pose and inverse depth
                 Gs, disps = BA(target, weight, eta, Gs, disps, intrinsics, ii, jj, fixedp=2)
 
-            # Step5.4: obtain updated value for follow-up optimization
-            coords1, valid_mask = pops.projective_transform(Gs, disps, intrinsics, ii, jj)
-            residual = (target - coords1)
+            # Step5.5: obtain updated intermediate variable value for next optimization iteration
+            coords1, valid_mask = pops.projective_transform(Gs, disps, intrinsics, ii, jj) # same formulation
+            residual = (target - coords1) # keep track of residual loss during iteration
 
             Gs_list.append(Gs)
-            # Step5.5: use unfold func to upsample estimated optical flow to match the input image size
+            # Step5.6: use unfold func to upsample estimated optical flow to match the input image size
             disp_list.append(upsample_disp(disps, upmask))
             residual_list.append(valid_mask * residual)
 
-
+        # Step5.7: output computed pose, inverse depth and residual error
         return Gs_list, disp_list, residual_list
