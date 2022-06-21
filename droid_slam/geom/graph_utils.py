@@ -8,7 +8,7 @@ from data_readers.rgbd_utils import compute_distance_matrix_flow, compute_distan
 
 '''
     Frame-to-frame edges construction
-        Obtain which pairs of frames that are correlated
+        Obtain which pairs of frames that are correlated (ii, jj - edge id)
 '''
 def graph_to_edge_list(graph):
     ii, jj, kk = [], [], []

@@ -31,6 +31,7 @@ def pose_retr(poses, dx, ii):
 '''
     DBA layer
         Differentiable bundle adjustment layer
+        TODO detailed implementation
 '''
 def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
     """ Full Bundle Adjustment """
@@ -109,7 +110,11 @@ def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
 
     return poses, disps
 
-
+'''
+    Motion-only Bundle Adjustment
+        Obtain pose and depth for non-keyframes
+        TODO same as pose optimizer in orbslam?
+'''
 def MoBA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
     """ Motion only bundle adjustment """
 

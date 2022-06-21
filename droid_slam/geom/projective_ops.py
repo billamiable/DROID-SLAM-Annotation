@@ -95,7 +95,7 @@ def actp(Gij, X0, jacobian=False):
 
 '''
     Projection-based matching
-        TODO: detailed mathematical formulation? Jacobian?
+        Standard re-projection formulation TODO Jacobian?
 '''
 def projective_transform(poses, depths, intrinsics, ii, jj, jacobian=False, return_depth=False):
     """ map points from ii->jj """
