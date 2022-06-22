@@ -139,13 +139,15 @@ class UpdateModule(nn.Module):
 
         # Step3: pass updated hidden state to conv layers to predict the flow update (delta_flow)
         ### update variables ###
+        # *tuple means treating the elements of this iterable as positional arguments to this function call
+        # view() means changing the dim of output
         delta = self.delta(net).view(*output_dim)
         weight = self.weight(net).view(*output_dim)
 
         delta = delta.permute(0,1,3,4,2)[...,:2].contiguous()
         weight = weight.permute(0,1,3,4,2)[...,:2].contiguous()
 
-        # Step4: TODO unpack output features from gru module
+        # Step4: reshape output features from gru module
         net = net.view(*output_dim)
 
         if ii is not None:

@@ -50,27 +50,38 @@ def block_solve(H, b, ep=0.1, lm=0.0001):
 def schur_solve(H, E, C, v, w, ep=0.1, lm=0.0001, sless=False):
     """ solve using shur complement """
     
+    # Step1: preprocessing and prepare inputs
     B, P, M, D, HW = E.shape
     H = H.permute(0,1,3,2,4).reshape(B, P*D, P*D)
     E = E.permute(0,1,3,2,4).reshape(B, P*D, M*HW)
-    Q = (1.0 / C).view(B, M*HW, 1)
+    # C^-1 = 1 / C (diagonal)
+    Q = (1.0 / C).view(B, M*HW, 1) # C has damping factor included
 
-    # damping
+    # Step2: TODO add pixelwise damping factor to the depth block? or similar to Laplace term?
     I = torch.eye(P*D).to(H.device)
     H = H + (ep + lm*H) * I
     
     v = v.reshape(B, P*D, 1)
     w = w.reshape(B, M*HW, 1)
 
+    # Step3: prepare inputs for schur complement
+    # E^T
     Et = E.transpose(1,2)
+    # B - E * C^-1 * E^T
     S = H - torch.matmul(E, Q*Et)
+    # v - E * C^-1 * w
     v = v - torch.matmul(E, Q*w)
 
+    # Step4: substitute delta_depth and first obtain estimation for delta_pose
     dx = CholeskySolver.apply(S, v)
     if sless:
         return dx.reshape(B, P, D)
 
-    dz = Q * (w - Et @ dx)    
+    # Step5: use delta_pose to derive delta_depth
+    # delta_depth = C^-1 * (w - E^T * delta_pose)
+    dz = Q * (w - Et @ dx)
+
+    # Step6: reshape output delta variables
     dx = dx.reshape(B, P, D)
     dz = dz.reshape(B, M, HW)
 
