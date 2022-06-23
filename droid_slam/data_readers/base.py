@@ -69,6 +69,16 @@ class RGBDDataset(data.Dataset):
     def build_frame_graph(self, poses, depths, intrinsics, f=16, max_flow=256):
         """ compute optical flow distance between all pairs of frames """
         def read_disp(fn):
+            '''
+                f is a downsampling factor.
+                Meaning flow is being computed at 1/16 resolution
+                and the intrinsics need to be adjusted accordingly.
+                Originally, this function took to long to compute flow at full resolution.
+                # However, I now have a cuda implementation
+                which can operate quickly at full resolution.
+                So I will likely soon replace the current implementation with the cuda version
+                https://github.com/princeton-vl/DROID-SLAM/issues/15
+            '''
             depth = self.__class__.depth_read(fn)[f//2::f, f//2::f]
             depth[depth < 0.01] = np.mean(depth)
             return 1.0 / depth

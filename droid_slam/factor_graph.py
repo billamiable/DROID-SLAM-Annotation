@@ -82,6 +82,10 @@ class FactorGraph:
         self.net = None
         self.inp = None
 
+    '''
+        Add Edge to Factor Graph
+            Key part for factor graph class
+    '''
     @torch.cuda.amp.autocast(enabled=True)
     def add_factors(self, ii, jj, remove=False):
         """ add edges to factor graph """
@@ -250,6 +254,10 @@ class FactorGraph:
         self.age += 1
 
 
+    '''
+        Update operator
+            Reduced memory implementation used in backend
+    '''
     @torch.cuda.amp.autocast(enabled=False)
     def update_lowmem(self, t0=None, t1=None, itrs=2, use_inactive=False, EP=1e-7, steps=8):
         """ run update operator on factor graph - reduced memory implementation """
@@ -301,42 +309,53 @@ class FactorGraph:
 
     '''
         Covisibility graph
-            TODO: Neighbor frames according to time interval
+            Add time-interval-based neighbor frames to factor graph
     '''
     def add_neighborhood_factors(self, t0, t1, r=3):
         """ add edges between neighboring frames within radius r """
 
-        # constructing 2D matrix
+        # Step1: constructing 2D matrix to easily find nearby keyframes
+        # ii - [t0, ..,   t0; ... ; t1-1, .., t1-1]
+        # jj - [t0, .., t1-1; ... ; t0,   .., t1-1]
         ii, jj = torch.meshgrid(torch.arange(t0,t1), torch.arange(t0,t1))
-        # flatten the 2D matrix into 1D tensor
+
+        # Step2: flatten the 2D matrix into 1D tensor
+        # append the following lines into 1D tensor
         ii = ii.reshape(-1).to(dtype=torch.long, device=self.device)
         jj = jj.reshape(-1).to(dtype=torch.long, device=self.device)
 
         c = 1 if self.video.stereo else 0
 
-        # TODO: why ii and jj represents neighboring frames?
+        # Step3: select nearby keyframes which are within 3 timesteps apart
         keep = ((ii - jj).abs() > c) & ((ii - jj).abs() <= r)
+
+        # Step4: add corresponding edges to factor graph
         self.add_factors(ii[keep], jj[keep])
 
     '''
         Covisibility graph
-            TODO: Proximity frames according to distance
+            Add distance-based proximity frames to factor graph
     '''
     def add_proximity_factors(self, t0=0, t1=0, rad=2, nms=2, beta=0.25, thresh=16.0, remove=False):
         """ add edges to the factor graph based on distance """
 
+        # Step1: constructing 2D matrix to easily find nearby keyframes
         t = self.video.counter.value
         ix = torch.arange(t0, t)
         jx = torch.arange(t1, t)
 
         ii, jj = torch.meshgrid(ix, jx)
+
+        # Step2: flatten the 2D matrix into 1D tensor
         ii = ii.reshape(-1)
         jj = jj.reshape(-1)
 
+        # Step3: compute frame distance based on optical flow value
         d = self.video.distance(ii, jj, beta=beta)
         d[ii - rad < jj] = np.inf
         d[d > 100] = np.inf
 
+        # Step4: TODO understand this part
         ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0)
         jj1 = torch.cat([self.jj, self.jj_bad, self.jj_inac], 0)
         for i, j in zip(ii1.cpu().numpy(), jj1.cpu().numpy()):
@@ -349,7 +368,7 @@ class FactorGraph:
                         if (t0 <= i1 < t) and (t1 <= j1 < t):
                             d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
-
+        # TODO what's es?
         es = []
         for i in range(t0, t):
             if self.video.stereo:
@@ -385,5 +404,7 @@ class FactorGraph:
                         if (t0 <= i1 < t) and (t1 <= j1 < t):
                             d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
+        # TODO undestand why enable backend in a separate thread will fail
+        #      seems that es is empty if backend is enabled?
         ii, jj = torch.as_tensor(es, device=self.device).unbind(dim=-1)
         self.add_factors(ii, jj, remove)

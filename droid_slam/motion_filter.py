@@ -71,6 +71,11 @@ class MotionFilter:
             # approximate flow magnitude using 1 update iteration
             _, delta, weight = self.update(self.net[None], self.inp[None], corr)
 
+            '''
+                Keyframe Selection
+                    Flow-based method to determine if a frame is set as keyframe
+                    If condition not satisfied then the incoming frame won't be processed in the frontend
+            '''
             # check motion magnitue / add new frame to video
             if delta.norm(dim=-1).mean().item() > self.thresh:
                 self.count = 0

@@ -150,6 +150,10 @@ class DepthVideo:
 
         return coords, valid_mask
 
+    '''
+        Compute Frame Distance
+            Optical flow based distance
+    '''
     def distance(self, ii=None, jj=None, beta=0.3, bidirectional=True):
         """ frame distance metric """
 

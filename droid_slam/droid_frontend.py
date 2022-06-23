@@ -12,7 +12,7 @@ class DroidFrontend:
         self.update_op = net.update
         '''
             Local Bundle Adjustment
-                TODO: Factor graph for local BA?
+                TODO Factor graph for local BA?
         '''
         self.graph = FactorGraph(video, net.update, max_factors=48, upsample=args.upsample)
 
@@ -105,7 +105,7 @@ class DroidFrontend:
         self.t0 = 0
         self.t1 = self.video.counter.value
 
-        # Step1: add time-range-based neighbor edge into factor graph
+        # Step1: add time-interval-based nearby edge into factor graph
         self.graph.add_neighborhood_factors(self.t0, self.t1, r=3)
 
         # Step2: run multiple times of graph update

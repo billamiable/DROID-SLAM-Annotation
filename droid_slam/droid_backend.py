@@ -34,7 +34,7 @@ class DroidBackend:
             Global Bundle Adjustment
                 Still using factor graph for global BA
         '''
-        # Step2: initialize factor graph for global BA
+        # Step2: initialize factor graph for global BA TODO FactorGraph
         graph = FactorGraph(self.video, self.update_op, corr_impl="alt", max_factors=16*t, upsample=self.upsample)
 
         # Step3: add distance-based proximity edge to factor graph
