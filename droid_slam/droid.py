@@ -21,6 +21,7 @@ class Droid:
         self.disable_vis = args.disable_vis
 
         # store images, depth, poses, intrinsics (shared between processes)
+        # DepthVideo doesn't constrain the mode as depth!
         self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo)
 
         '''

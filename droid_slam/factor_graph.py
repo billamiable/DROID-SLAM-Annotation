@@ -84,54 +84,60 @@ class FactorGraph:
 
     '''
         Add Edge to Factor Graph
-            Key part for factor graph class
+            One of key part for factor graph class
     '''
     @torch.cuda.amp.autocast(enabled=True)
     def add_factors(self, ii, jj, remove=False):
         """ add edges to factor graph """
 
+        # Step1: preprocessing of input into tensor
+        # returns True if the specified object is of the specified type
         if not isinstance(ii, torch.Tensor):
             ii = torch.as_tensor(ii, dtype=torch.long, device=self.device)
 
         if not isinstance(jj, torch.Tensor):
             jj = torch.as_tensor(jj, dtype=torch.long, device=self.device)
 
-        # remove duplicate edges
+        # Step2: remove duplicate edges
         ii, jj = self.__filter_repeated_edges(ii, jj)
 
 
         if ii.shape[0] == 0:
             return
 
-        # place limit on number of factors
+        # Step3: place limit on number of factors
         if self.max_factors > 0 and self.ii.shape[0] + ii.shape[0] > self.max_factors \
                 and self.corr is not None and remove:
             
             ix = torch.arange(len(self.age))[torch.argsort(self.age).cpu()]
             self.rm_factors(ix >= self.max_factors - ii.shape[0], store=True)
 
-        net = self.video.nets[ii].to(self.device).unsqueeze(0)
+        # Step4: construct context feature for new edges TODO nets[ii]
+        net = self.video.nets[ii].to(self.device).unsqueeze(0) # opposite of squeeze
 
-        # correlation volume for new edges
+        # Step5: constrcut 4D correlation volume for new edges
         if self.corr_impl == "volume":
             c = (ii == jj).long()
-            fmap1 = self.video.fmaps[ii,0].to(self.device).unsqueeze(0)
+            fmap1 = self.video.fmaps[ii,0].to(self.device).unsqueeze(0) # feature map
             fmap2 = self.video.fmaps[jj,c].to(self.device).unsqueeze(0)
-            corr = CorrBlock(fmap1, fmap2)
+            corr = CorrBlock(fmap1, fmap2) # 4D correlation volum
             self.corr = corr if self.corr is None else self.corr.cat(corr)
 
+            # Step6: constrcut hidden state for new edges
             inp = self.video.inps[ii].to(self.device).unsqueeze(0)
             self.inp = inp if self.inp is None else torch.cat([self.inp, inp], 1)
 
+        # Step7: TODO prepare inputs for reprojection factor
         with torch.cuda.amp.autocast(enabled=False):
             target, _ = self.video.reproject(ii, jj)
+            # Returns a tensor filled with the scalar value 0 , with the same size as input
             weight = torch.zeros_like(target)
 
         self.ii = torch.cat([self.ii, ii], 0)
         self.jj = torch.cat([self.jj, jj], 0)
         self.age = torch.cat([self.age, torch.zeros_like(ii)], 0)
 
-        # reprojection factors
+        # Step8: constrcut reprojection factor for new edges
         self.net = net if self.net is None else torch.cat([self.net, net], 1)
 
         self.target = torch.cat([self.target, target], 1)
@@ -201,26 +207,29 @@ class FactorGraph:
     '''
         Update operator
             Key contribution of DROID-SLAM
+            TODO difference between the one in driod_net.py?
     '''
     @torch.cuda.amp.autocast(enabled=True)
     def update(self, t0=None, t1=None, itrs=2, use_inactive=False, EP=1e-7, motion_only=False):
         """ run update operator on factor graph """
 
-        # motion features
+        # Step1: prepare motion features
         with torch.cuda.amp.autocast(enabled=False):
             coords1, mask = self.video.reproject(self.ii, self.jj)
             motn = torch.cat([coords1 - self.coords0, self.target - coords1], dim=-1)
             motn = motn.permute(0,1,4,2,3).clamp(-64.0, 64.0)
         
-        # correlation features
+        # Step2: prepare correlation features
         corr = self.corr(coords1)
 
+        # Step3: use update operator defined in driod-net
         self.net, delta, weight, damping, upmask = \
             self.update_op(self.net, self.inp, corr, motn, self.ii, self.jj)
 
         if t0 is None:
             t0 = max(1, self.ii.min().item()+1)
 
+        # Step4: prepare inputs for BA layer
         with torch.cuda.amp.autocast(enabled=False):
             self.target = coords1 + delta.to(dtype=torch.float)
             self.weight = weight.to(dtype=torch.float)
@@ -244,13 +253,15 @@ class FactorGraph:
             target = target.view(-1, ht, wd, 2).permute(0,3,1,2).contiguous()
             weight = weight.view(-1, ht, wd, 2).permute(0,3,1,2).contiguous()
 
-            # dense bundle adjustment
+            # Step5: perform dense bundle adjustment
             self.video.ba(target, weight, damping, ii, jj, t0, t1, 
                 itrs=itrs, lm=1e-4, ep=0.1, motion_only=motion_only)
         
+            # Step6: upsample inverse depth estimation
             if self.upsample:
                 self.video.upsample(torch.unique(self.ii), upmask)
 
+        # Step7: count updated times
         self.age += 1
 
 
@@ -330,11 +341,12 @@ class FactorGraph:
         keep = ((ii - jj).abs() > c) & ((ii - jj).abs() <= r)
 
         # Step4: add corresponding edges to factor graph
-        self.add_factors(ii[keep], jj[keep])
+        self.add_factors(ii[keep], jj[keep]) # ii[keep] or jj[keep] - 1D tensor
 
     '''
         Covisibility graph
             Add distance-based proximity frames to factor graph
+            non-max suppression (nms)
     '''
     def add_proximity_factors(self, t0=0, t1=0, rad=2, nms=2, beta=0.25, thresh=16.0, remove=False):
         """ add edges to the factor graph based on distance """
@@ -351,24 +363,27 @@ class FactorGraph:
         jj = jj.reshape(-1)
 
         # Step3: compute frame distance based on optical flow value
-        d = self.video.distance(ii, jj, beta=beta)
+        d = self.video.distance(ii, jj, beta=beta) # shape of d: (N, N)
         d[ii - rad < jj] = np.inf
         d[d > 100] = np.inf
 
-        # Step4: TODO understand this part
-        ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0)
+        # Step4: suppress neighboring edges within a predefined distance threshold
+        # TODO why include bad and inactive factors?
+        ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0) # bad and inactive factors
         jj1 = torch.cat([self.jj, self.jj_bad, self.jj_inac], 0)
         for i, j in zip(ii1.cpu().numpy(), jj1.cpu().numpy()):
             for di in range(-nms, nms+1):
                 for dj in range(-nms, nms+1):
+                    # Chebyshev distance between index pairs: TODO ||(i,j) - (k,l)||∞ = max(|i-k|,|j-l|)
                     if abs(di) + abs(dj) <= max(min(abs(i-j)-2, nms), 0):
                         i1 = i + di
                         j1 = j + dj
 
                         if (t0 <= i1 < t) and (t1 <= j1 < t):
-                            d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
+                            d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf # TODO suppress what?
 
-        # TODO what's es?
+        # Step5: add temporally adjacent keyframes to factor graph
+        # TODO es - why this data format?
         es = []
         for i in range(t0, t):
             if self.video.stereo:
@@ -380,23 +395,29 @@ class FactorGraph:
                 es.append((j,i))
                 d[(i-t0)*(t-t1) + (j-t1)] = np.inf
 
+        # Step6: sample new edges from the distance matrix in order of increasing flow and suppress neighboring edges
+        # Returns the indices that sort a tensor along a given dimension in ascending order by value
         ix = torch.argsort(d)
         for k in ix:
+            # TODO this threshold seems large
             if d[k].item() > thresh:
                 continue
 
+            # avoid inserting new factors to graph when exceeds maximum
             if len(es) > self.max_factors:
                 break
 
             i = ii[k]
             j = jj[k]
             
-            # bidirectional
+            # TODO why bidirectional?
             es.append((i, j))
             es.append((j, i))
 
+            # same block as before
             for di in range(-nms, nms+1):
                 for dj in range(-nms, nms+1):
+                    # Chebyshev distance between index pairs: TODO ||(i,j) - (k,l)||∞ = max(|i-k|,|j-l|)
                     if abs(di) + abs(dj) <= max(min(abs(i-j)-2, nms), 0):
                         i1 = i + di
                         j1 = j + dj
@@ -404,7 +425,12 @@ class FactorGraph:
                         if (t0 <= i1 < t) and (t1 <= j1 < t):
                             d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
+        # Step7: post-processing of index pairs and add corresponding edges to factor graph
         # TODO undestand why enable backend in a separate thread will fail
-        #      seems that es is empty if backend is enabled?
+        #      seems that es is empty if backend is enabled? (much likely)
+        # torch.as_tensor - converts data into a tensor
+        # unbind - removes a tensor dimension (the last dim)
+        # es - [[i1,j1], [j1,i1], .., [in,jn], [jn,in]]
+        # ii - [i1, j1, ..., in, jn]; jj - [j1, i1, ..., jn, in] : both 1D tensors
         ii, jj = torch.as_tensor(es, device=self.device).unbind(dim=-1)
         self.add_factors(ii, jj, remove)

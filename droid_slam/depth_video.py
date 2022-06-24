@@ -10,8 +10,8 @@ from droid_net import cvx_upsample
 import geom.projective_ops as pops
 
 '''
-    Extend to Depth camera
-        TODO: is this the right place, doesn't see loss definition?
+    Video input for system
+        Doesn't constrain the mode to be only depth
 '''
 class DepthVideo:
     def __init__(self, image_size=[480, 640], buffer=1024, stereo=False, device="cuda:0"):
@@ -139,7 +139,10 @@ class DepthVideo:
             self.poses[:self.counter.value,:3] *= s
             self.dirty[:self.counter.value] = True
 
-
+    '''
+        Reprojection transform
+            return reprojected pixel coordinate
+    '''
     def reproject(self, ii, jj):
         """ project points from ii -> jj """
         ii, jj = DepthVideo.format_indicies(ii, jj)
