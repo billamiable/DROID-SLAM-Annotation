@@ -1,8 +1,11 @@
 #include <torch/extension.h>
 #include <vector>
 
+/*
+    offload frequent and heavy computation to GPU
+    detailed implementations are in the droid_kernels.cu
+*/
 
-// TODO: offload frequent and heavy computation to GPU?
 // CUDA forward declarations
 std::vector<torch::Tensor> projective_transform_cuda(
   torch::Tensor poses,

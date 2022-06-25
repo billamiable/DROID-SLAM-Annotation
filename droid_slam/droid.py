@@ -86,12 +86,14 @@ class Droid:
     def terminate(self, stream=None):
         """ terminate the visualization process, return poses [t, q] """
 
+        # TODO will this prevent the backend from failing?
         del self.frontend
 
         '''
             Global BA
                 After disabling the following two steps, the accuracy will drop a lot
-                TODO: why do it twice with different iterations?
+                TODO why do it twice with different iterations?
+                TODO maybe empty_cache should be called before calling backend
         '''
         torch.cuda.empty_cache()
         print("#" * 32)

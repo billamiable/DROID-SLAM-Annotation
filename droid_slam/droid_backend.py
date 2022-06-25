@@ -22,6 +22,7 @@ class DroidBackend:
         self.backend_nms = args.backend_nms
         
     @torch.no_grad()
+    # TODO another reason for failure maybe default steps is too large
     def __call__(self, steps=12):
         """ main update """
 
@@ -34,7 +35,8 @@ class DroidBackend:
             Global Bundle Adjustment
                 Still using factor graph for global BA
         '''
-        # Step2: initialize factor graph for global BA TODO FactorGraph
+        # Step2: initialize factor graph for global BA
+        # TODO this part may cause the failure of multi-gpu processing since factor graph is constructed again and again
         graph = FactorGraph(self.video, self.update_op, corr_impl="alt", max_factors=16*t, upsample=self.upsample)
 
         # Step3: add distance-based proximity edge to factor graph

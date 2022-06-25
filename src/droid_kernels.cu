@@ -32,7 +32,7 @@ typedef std::vector<torch::Tensor> tensor_list_t;
 #define GPU_1D_KERNEL_LOOP(k, n) \
   for (size_t k = threadIdx.x; k<n; k += blockDim.x)
 
-
+// TODO investigate is this a advanced feature?
 __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
   sdata[tid] += sdata[tid + 32];
   sdata[tid] += sdata[tid + 16];

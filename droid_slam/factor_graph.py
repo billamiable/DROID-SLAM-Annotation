@@ -205,9 +205,10 @@ class FactorGraph:
 
 
     '''
-        Update operator
-            Key contribution of DROID-SLAM
-            TODO difference between the one in driod_net.py?
+        Update Operator
+            Key contribution of DROID-SLAM, use update operator for RAFT inside
+            overall process similar to forward() in droid-net.py
+            difference: happens
     '''
     @torch.cuda.amp.autocast(enabled=True)
     def update(self, t0=None, t1=None, itrs=2, use_inactive=False, EP=1e-7, motion_only=False):
@@ -222,7 +223,7 @@ class FactorGraph:
         # Step2: prepare correlation features
         corr = self.corr(coords1)
 
-        # Step3: use update operator defined in driod-net
+        # Step3: use update operator defined in droid-net (RAFT)
         self.net, delta, weight, damping, upmask = \
             self.update_op(self.net, self.inp, corr, motn, self.ii, self.jj)
 

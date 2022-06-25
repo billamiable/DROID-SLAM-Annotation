@@ -12,7 +12,7 @@ class DroidFrontend:
         self.update_op = net.update
         '''
             Local Bundle Adjustment
-                TODO Factor graph for local BA?
+                Factor graph for local BA
         '''
         self.graph = FactorGraph(video, net.update, max_factors=48, upsample=args.upsample)
 
@@ -58,13 +58,13 @@ class DroidFrontend:
         self.video.disps[self.t1-1] = torch.where(self.video.disps_sens[self.t1-1] > 0, 
            self.video.disps_sens[self.t1-1], self.video.disps[self.t1-1])
 
-        # Step4: run multiple times of graph update
+        # Step4: run multiple times of factor graph update
         for itr in range(self.iters1):
             self.graph.update(None, None, use_inactive=True)
 
         '''
-            Frame-to-frame tracking
-                TODO: Directly use pose from last frame or apply motion model?
+            Initial Pose Estimation
+                TODO Directly use pose from last frame or apply motion model?
         '''
         # Step5: set initial pose for next frame
         poses = SE3(self.video.poses)
@@ -84,15 +84,16 @@ class DroidFrontend:
                 self.video.counter.value -= 1
                 self.t1 -= 1
 
+        # Step7: re-run multiple times of factor graph update
         else:
             for itr in range(self.iters2):
                 self.graph.update(None, None, use_inactive=True)
 
-        # Step7: set pose for next iteration
+        # Step8: set pose for next iteration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
 
-        # Step8: update visualization
+        # Step9: update visualization
         self.video.dirty[self.graph.ii.min():self.t1] = True
 
     '''
@@ -140,7 +141,7 @@ class DroidFrontend:
         # Step7: TODO remove edges from factor graph
         self.graph.rm_factors(self.graph.ii < self.warmup-4, store=True)
 
-    # TODO: default setting for python to use __call__ func when the class obeject is called?
+    # use __call__ func when the class obeject is called - self.frontend()
     def __call__(self):
         """ main update """
 

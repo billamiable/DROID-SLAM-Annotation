@@ -49,14 +49,14 @@ class MotionFilter:
         ht = image.shape[-2] // 8
         wd = image.shape[-1] // 8
 
-        # normalize images
+        # Step1: normalize images
         inputs = image[None, :, [2,1,0]].to(self.device) / 255.0
         inputs = inputs.sub_(self.MEAN).div_(self.STDV)
 
-        # extract features
+        # Step2: extract features
         gmap = self.__feature_encoder(inputs)
 
-        ### always add first frame to the depth video ###
+        # Step3: always add first frame to the depth video
         if self.video.counter.value == 0:
             net, inp = self.__context_encoder(inputs[:,[0]])
             self.net, self.inp, self.fmap = net, inp, gmap
@@ -64,11 +64,11 @@ class MotionFilter:
 
         ### only add new frame if there is enough motion ###
         else:                
-            # index correlation volume
+            # Step4: TODO index correlation volume
             coords0 = pops.coords_grid(ht, wd, device=self.device)[None,None]
             corr = CorrBlock(self.fmap[None,[0]], gmap[None,[0]])(coords0)
 
-            # approximate flow magnitude using 1 update iteration
+            # Step5: approximate optical flow magnitude using 1 update iteration (UpdateModule in RAFT)
             _, delta, weight = self.update(self.net[None], self.inp[None], corr)
 
             '''
@@ -76,7 +76,7 @@ class MotionFilter:
                     Flow-based method to determine if a frame is set as keyframe
                     If condition not satisfied then the incoming frame won't be processed in the frontend
             '''
-            # check motion magnitue / add new frame to video
+            # Step6: check motion magnitue / add new frame to video
             if delta.norm(dim=-1).mean().item() > self.thresh:
                 self.count = 0
                 net, inp = self.__context_encoder(inputs[:,[0]])

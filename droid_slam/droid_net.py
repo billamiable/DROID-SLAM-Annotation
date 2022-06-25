@@ -199,8 +199,9 @@ class DroidNet(nn.Module):
 
 
     '''
-        Frame-to-Frame Tracking - Major part for nn module of DRIOD-SLAM
+        Frame-to-Frame Tracking - Major part for nn module of DROID-SLAM
             forward path for nn - define the computation performed at every call
+            TODO where this is used?
     '''
     def forward(self, Gs, images, disps, intrinsics, graph=None, num_steps=12, fixedp=2):
         """ Estimates SE3 or Sim3 between pair of frames """
@@ -264,7 +265,7 @@ class DroidNet(nn.Module):
             for i in range(2):
                 '''
                     Deep Bundle Adjustment Layer
-                        Core design in DRIOD-SLAM
+                        Core design in DROID-SLAM
                 '''
                 # Step5.4: feed into DBA layer to obtain delta value for pose and inverse depth
                 # Inputs: corrected correspondence field (target) and associated confidence map (weight), 
