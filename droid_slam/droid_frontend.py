@@ -75,7 +75,7 @@ class DroidFrontend:
         '''
             Remove redundant keyframes
                 Remove according to distance
-                TODO: which distance?
+                TODO which distance?
         '''
         if d.item() < self.keyframe_thresh:
             self.graph.rm_keyframe(self.t1 - 2)
@@ -112,7 +112,7 @@ class DroidFrontend:
         # Step2: run multiple times of graph update
         for itr in range(8):
             # only run one time for each iteration
-            # TODO use_inactive
+            # TODO use_inactive?
             self.graph.update(1, use_inactive=True)
 
         # Step3: add distance-based proximity edge into factor graph

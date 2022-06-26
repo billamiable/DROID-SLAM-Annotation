@@ -2,8 +2,8 @@
 #include <vector>
 
 /*
-    offload frequent and heavy computation to GPU
-    detailed implementations are in the droid_kernels.cu
+    Offload frequent and heavy computation to GPU
+    Detailed implementations are in the droid_kernels.cu
 */
 
 // CUDA forward declarations
@@ -91,7 +91,7 @@ std::vector<torch::Tensor> altcorr_cuda_backward(
 
 /*
     Bundle Adjustment
-
+        Forward declaration of ba which uses gpu implementation
 */
 std::vector<torch::Tensor> ba(
     torch::Tensor poses,

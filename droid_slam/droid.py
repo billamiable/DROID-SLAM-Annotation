@@ -21,7 +21,7 @@ class Droid:
         self.disable_vis = args.disable_vis
 
         # store images, depth, poses, intrinsics (shared between processes)
-        # DepthVideo doesn't constrain the mode as depth!
+        # DepthVideo doesn't constrain the mode as RGBD
         self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo)
 
         '''
@@ -61,6 +61,8 @@ class Droid:
         state_dict["update.delta.2.bias"] = state_dict["update.delta.2.bias"][:2]
 
         self.net.load_state_dict(state_dict)
+        # TODO cuda:0 should be changed if enable backend
+        # turn off layers like dropout, batchnorm and gradient computation
         self.net.to("cuda:0").eval()
 
     # Entry point for SLAM system
@@ -77,8 +79,8 @@ class Droid:
             '''
                 Loop detection
                     This should be a workaround for performance consideration.
-                    TODO: seems loop detection is not included, then when to perform global BA
-                    TODO: after enabling the following part, the system seems difficult to start
+                    TODO seems loop detection is not included, then when to perform global BA
+                    TODO after enabling the following part, the system seems difficult to start
             '''
             # global bundle adjustment
             # self.backend()
@@ -93,8 +95,10 @@ class Droid:
             Global BA
                 After disabling the following two steps, the accuracy will drop a lot
                 TODO why do it twice with different iterations?
-                TODO maybe empty_cache should be called before calling backend
+                TODO maybe empty_cache should be called before calling backend, using multicore should be fine?
         '''
+        # Releases all unoccupied cached memory currently held by the caching allocator
+        # so that those can be used in other GPU application and visible in nvidia-smi.
         torch.cuda.empty_cache()
         print("#" * 32)
         self.backend(7)

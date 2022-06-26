@@ -130,7 +130,7 @@ def projective_transform(poses, depths, intrinsics, ii, jj, jacobian=False, retu
 
 '''
     Compute optical flow from camera motion
-        TODO: detailed implementation and multi-view geometry
+        TODO detailed implementation and multi-view geometry
 '''
 def induced_flow(poses, disps, intrinsics, ii, jj):
     """ optical flow induced by camera motion """

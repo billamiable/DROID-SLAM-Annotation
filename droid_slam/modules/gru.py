@@ -3,9 +3,9 @@ import torch.nn as nn
 
 
 '''
-    Update operator
-        Key contribution of DROID-SLAM, GRU-based module
-        TODO: Why not transformer? detailed implementation?
+    GRU Module
+        Key contribution of DROID-SLAM
+        TODO Why not transformer? detailed implementation?
 '''
 class ConvGRU(nn.Module):
     def __init__(self, h_planes=128, i_planes=128):

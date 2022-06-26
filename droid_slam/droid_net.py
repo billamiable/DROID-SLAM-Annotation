@@ -162,6 +162,7 @@ class UpdateModule(nn.Module):
 
 class DroidNet(nn.Module):
     def __init__(self):
+        # simplify derived class to avoid explicit definition of base class
         super(DroidNet, self).__init__()
         '''
             Feature encoder
@@ -173,6 +174,10 @@ class DroidNet(nn.Module):
                 Sub-nn-module in RAFT
         '''
         self.cnet = BasicEncoder(output_dim=256, norm_fn='none')
+        '''
+            Update Operator
+                Core design in RAFT, mimics the steps of an optimization algorithm
+        '''
         self.update = UpdateModule()
 
 
@@ -200,8 +205,8 @@ class DroidNet(nn.Module):
 
     '''
         Frame-to-Frame Tracking - Major part for nn module of DROID-SLAM
-            forward path for nn - define the computation performed at every call
-            TODO where this is used?
+            Forward path for nn - define the computation performed at every call
+            It is only used during training (train.py)!!!
     '''
     def forward(self, Gs, images, disps, intrinsics, graph=None, num_steps=12, fixedp=2):
         """ Estimates SE3 or Sim3 between pair of frames """
@@ -216,7 +221,8 @@ class DroidNet(nn.Module):
         # Step2: extract features from images
         # feature map from feature encoder (fmaps) and context encoder (net), latent hidden state (inp)
         fmaps, net, inp = self.extract_features(images)
-        net, inp = net[:,ii], inp[:,ii] # TODO why this work? print shape
+        # TODO why this work? print shape
+        net, inp = net[:,ii], inp[:,ii]
 
         # Step3: construct 4D correlation volumes to obtain correlation pyramid
         # TODO print shape, seems only correlated ones are involved for constructing 4D cost volume?
@@ -241,7 +247,7 @@ class DroidNet(nn.Module):
             coords1 = coords1.detach()
             target = target.detach()
 
-            # Step5.1: extract motion-based flow features TODO what's motion?
+            # Step5.1: use defined loopup operator on correlation pyramid
             '''
                 Loopup Operator
                     Operate on multi-level correlation pyramid
@@ -250,16 +256,18 @@ class DroidNet(nn.Module):
             resd = target - coords1
             flow = coords1 - coords0
 
+            # Step5.2: extract motion-based flow features
             motion = torch.cat([flow, resd], dim=-1) # concat
             motion = motion.permute(0,1,4,2,3).clamp(-64.0, 64.0) # rearrange ordering & limit value within range
 
-            # Step5.2: feed into GRU to get correction value for correspondence and confidence value
+            # Step5.3: feed into GRU to get correction value for correspondence and confidence value
             # Inputs: context feature (net), hidden state (inp), correlation feature (corr), flow feature (motion)
             # Outputs: correction term for correspondence field (delta) and associated confidence map (weight)
+            #          updated hidden state (net), pixelwise damping factor (eta), upsampling mask for inverse depth (upmask)
             net, delta, weight, eta, upmask = \
                 self.update(net, inp, corr, motion, ii, jj)
 
-            # Step5.3: get corrected corrspondence with initial correspondence and correction term
+            # Step5.4: get corrected corrspondence with initial correspondence and correction term
             target = coords1 + delta
 
             for i in range(2):
@@ -267,20 +275,21 @@ class DroidNet(nn.Module):
                     Deep Bundle Adjustment Layer
                         Core design in DROID-SLAM
                 '''
-                # Step5.4: feed into DBA layer to obtain delta value for pose and inverse depth
+                # Step5.5: feed into DBA layer to obtain delta value for pose and inverse depth
                 # Inputs: corrected correspondence field (target) and associated confidence map (weight), 
                 #         pixelwise damping factor (eta), initial pose (Gs) and inverse depth (disps)
+                #         index pairs (ii, jj), TODO fixedp
                 # Outputs: optimized pose (Gs) and inverse depth (disps)
                 Gs, disps = BA(target, weight, eta, Gs, disps, intrinsics, ii, jj, fixedp=2)
 
-            # Step5.5: obtain updated variable values and residual loss for next optimization iteration
+            # Step5.6: obtain updated variable values and residual loss for next optimization iteration
             coords1, valid_mask = pops.projective_transform(Gs, disps, intrinsics, ii, jj) # same formulation
             residual = (target - coords1) # keep track of residual loss during iteration
 
             Gs_list.append(Gs)
-            # Step5.6: use unfold func to upsample estimated optical flow to match the input image size
+            # Step5.7: use unfold() to upsample estimated optical flow to match the input image size
             disp_list.append(upsample_disp(disps, upmask))
             residual_list.append(valid_mask * residual)
 
-        # Step5.7: output computed pose, inverse depth and residual error
+        # Step6: output computed pose, inverse depth and residual error
         return Gs_list, disp_list, residual_list

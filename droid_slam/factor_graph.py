@@ -207,23 +207,29 @@ class FactorGraph:
     '''
         Update Operator
             Key contribution of DROID-SLAM, use update operator for RAFT inside
-            overall process similar to forward() in droid-net.py
-            difference: happens
+            Overall process similar to forward() in droid-net.py
+            Difference: that only happens in training, this happens in inference
     '''
     @torch.cuda.amp.autocast(enabled=True)
     def update(self, t0=None, t1=None, itrs=2, use_inactive=False, EP=1e-7, motion_only=False):
         """ run update operator on factor graph """
 
-        # Step1: prepare motion features
+        # During inference, feature and correlation map are extracted before
+
+        # Step1: use projection-based matching and lookup operator to obtain initial correspondences &
+        #        extract motion-based flow features
         with torch.cuda.amp.autocast(enabled=False):
             coords1, mask = self.video.reproject(self.ii, self.jj)
             motn = torch.cat([coords1 - self.coords0, self.target - coords1], dim=-1)
             motn = motn.permute(0,1,4,2,3).clamp(-64.0, 64.0)
         
-        # Step2: prepare correlation features
+        # Step2: use defined loopup operator on correlation pyramid
         corr = self.corr(coords1)
 
-        # Step3: use update operator defined in droid-net (RAFT)
+        # Step3: feed into GRU to get correction value for correspondence and confidence value
+        # Inputs: context feature (self.net), hidden state (self.inp), correlation feature (corr), flow feature (motn)
+        # Outputs: correction term for correspondence field (delta) and associated confidence map (weight)
+        #          updated hidden state (self.net), pixelwise damping factor (damping), upsampling mask for inverse depth (upmask)
         self.net, delta, weight, damping, upmask = \
             self.update_op(self.net, self.inp, corr, motn, self.ii, self.jj)
 
@@ -232,12 +238,14 @@ class FactorGraph:
 
         # Step4: prepare inputs for BA layer
         with torch.cuda.amp.autocast(enabled=False):
+            # Step4.1: get corrected corrspondence with initial correspondence and correction term
             self.target = coords1 + delta.to(dtype=torch.float)
             self.weight = weight.to(dtype=torch.float)
 
             ht, wd = self.coords0.shape[0:2]
             self.damping[torch.unique(self.ii)] = damping
 
+            # Step4.2: TODO use_inactive?
             if use_inactive:
                 m = (self.ii_inac >= t0 - 3) & (self.jj_inac >= t0 - 3)
                 ii = torch.cat([self.ii_inac[m], self.ii], 0)
@@ -249,16 +257,20 @@ class FactorGraph:
                 ii, jj, target, weight = self.ii, self.jj, self.target, self.weight
 
 
+            # Step4.3: prepare damping factor TODO what's EP?
             damping = .2 * self.damping[torch.unique(ii)].contiguous() + EP
 
             target = target.view(-1, ht, wd, 2).permute(0,3,1,2).contiguous()
             weight = weight.view(-1, ht, wd, 2).permute(0,3,1,2).contiguous()
 
-            # Step5: perform dense bundle adjustment
+            # Step5: feed into DBA layer to obtain delta value for pose and inverse depth
+            # Inputs: corrected correspondence field (target) and associated confidence map (weight), 
+            #         pixelwise damping factor (damping), index pairs (ii, jj), timestamp pairs (t0, t1)
+            #         iteration times (itrs), TODO lm, ep motion_only
             self.video.ba(target, weight, damping, ii, jj, t0, t1, 
                 itrs=itrs, lm=1e-4, ep=0.1, motion_only=motion_only)
         
-            # Step6: upsample inverse depth estimation
+            # Step6: use unfold() to upsample estimated optical flow to match the input image size
             if self.upsample:
                 self.video.upsample(torch.unique(self.ii), upmask)
 
@@ -381,10 +393,11 @@ class FactorGraph:
                         j1 = j + dj
 
                         if (t0 <= i1 < t) and (t1 <= j1 < t):
-                            d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf # TODO suppress what?
+                            # TODO suppress what?
+                            d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
         # Step5: add temporally adjacent keyframes to factor graph
-        # TODO es - why this data format?
+        # TODO es - why es is empty if enable backend? detailed investigation
         es = []
         for i in range(t0, t):
             if self.video.stereo:
@@ -428,7 +441,7 @@ class FactorGraph:
 
         # Step7: post-processing of index pairs and add corresponding edges to factor graph
         # TODO undestand why enable backend in a separate thread will fail
-        #      seems that es is empty if backend is enabled? (much likely)
+        #      es is empty if backend is enabled?
         # torch.as_tensor - converts data into a tensor
         # unbind - removes a tensor dimension (the last dim)
         # es - [[i1,j1], [j1,i1], .., [in,jn], [jn,in]]

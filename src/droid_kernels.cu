@@ -1114,6 +1114,10 @@ __global__ void EvT6x1_kernel(
   }
 }
 
+/*
+    Linear Solver
+        Mimics g2o solver and leverage sparse structure
+*/
 class SparseBlock {
   public:
 
@@ -1310,7 +1314,10 @@ SparseBlock schur_block(torch::Tensor E,
   return A;
 }
 
-
+/*
+    Bundle Adjustment
+        Detailed gpu implementation
+*/
 std::vector<torch::Tensor> ba_cuda(
     torch::Tensor poses,
     torch::Tensor disps,
@@ -1434,7 +1441,10 @@ std::vector<torch::Tensor> ba_cuda(
 }
 
 
-
+/*
+    Calculated frame distance based on optical flow
+        Detailed gpu implementation
+*/
 torch::Tensor frame_distance_cuda(
     torch::Tensor poses,
     torch::Tensor disps,

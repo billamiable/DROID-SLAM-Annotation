@@ -11,7 +11,7 @@ import geom.projective_ops as pops
 
 '''
     Video input for system
-        Doesn't constrain the mode to be only depth
+        Doesn't constrain the mode to be only RGBD
 '''
 class DepthVideo:
     def __init__(self, image_size=[480, 640], buffer=1024, stereo=False, device="cuda:0"):
@@ -189,6 +189,11 @@ class DepthVideo:
 
         return d
 
+    '''
+        DBA layer
+            Differentiable bundle adjustment layer
+            Used during inference
+    '''
     def ba(self, target, weight, eta, ii, jj, t0=1, t1=None, itrs=2, lm=1e-4, ep=0.1, motion_only=False):
         """ dense bundle adjustment (DBA) """
 
@@ -198,6 +203,7 @@ class DepthVideo:
             if t1 is None:
                 t1 = max(ii.max().item(), jj.max().item()) + 1
 
+            # use gpu implementation
             droid_backends.ba(self.poses, self.disps, self.intrinsics[0], self.disps_sens,
                 target, weight, eta, ii, jj, t0, t1, itrs, lm, ep, motion_only)
 

@@ -32,6 +32,7 @@ def setup_ddp(gpu, args):
     	world_size=args.world_size,                              
     	rank=gpu)
 
+    # TODO check this as well
     torch.manual_seed(0)
     torch.cuda.set_device(gpu)
 
@@ -40,7 +41,7 @@ def show_image(image):
     cv2.imshow('image', image / 255.0)
     cv2.waitKey()
 
-# TODO: No preprocessing step? detailed dataloader implementation?
+# TODO No preprocessing step? detailed dataloader implementation?
 def train(gpu, args):
     """ Test to make sure project transform correctly maps points """
 
@@ -105,6 +106,7 @@ def train(gpu, args):
                 r = rng.random()
                 
                 intrinsics0 = intrinsics / 8.0
+                # Only used during training
                 poses_est, disps_est, residuals = model(Gs, images, disp0, intrinsics0, 
                     graph, num_steps=args.iters, fixedp=2)
 
@@ -184,5 +186,6 @@ if __name__ == '__main__':
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12356'
+    # TODO maybe refer to this part for multi-gpu processing
     mp.spawn(train, nprocs=args.gpus, args=(args,))
 

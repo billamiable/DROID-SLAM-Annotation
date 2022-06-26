@@ -32,6 +32,7 @@ def pose_retr(poses, dx, ii):
 '''
     DBA layer
         Differentiable bundle adjustment layer
+        Used during training
 '''
 def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
     """ Full Bundle Adjustment """
