@@ -1453,8 +1453,8 @@ torch::Tensor frame_distance_cuda(
     torch::Tensor jj,
     const float beta)
 {
-  auto opts = poses.options();
-  const int num = ii.size(0);
+  auto opts = poses.options(); // same as Tensor.type()
+  const int num = ii.size(0);  // output size of dist
 
   torch::Tensor dist = torch::zeros({num}, opts);
 

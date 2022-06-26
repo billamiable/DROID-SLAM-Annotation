@@ -339,12 +339,12 @@ class FactorGraph:
         """ add edges between neighboring frames within radius r """
 
         # Step1: constructing 2D matrix to easily find nearby keyframes
-        # ii - [t0, ..,   t0; ... ; t1-1, .., t1-1]
-        # jj - [t0, .., t1-1; ... ; t0,   .., t1-1]
+        # ii - 2D tensor (t1-t0, t1-t0) - [t0,   t0, ..,   t0; t0+1, t0+1, ..., t0+1; t1-1, t1-1, .., t1-1]
+        # jj - 2D tensor (t1-t0, t1-t0) - [t0, t0+1, .., t1-1;   t1, t1+1, ...,  t-1;   t1, t1+1, ..,  t-1]
         ii, jj = torch.meshgrid(torch.arange(t0,t1), torch.arange(t0,t1))
 
         # Step2: flatten the 2D matrix into 1D tensor
-        # append the following lines into 1D tensor
+        # reshape - append the following lines into 1D tensor
         ii = ii.reshape(-1).to(dtype=torch.long, device=self.device)
         jj = jj.reshape(-1).to(dtype=torch.long, device=self.device)
 
@@ -359,31 +359,38 @@ class FactorGraph:
     '''
         Covisibility graph
             Add distance-based proximity frames to factor graph
-            non-max suppression (nms)
+            non-max suppression (nms) TODO detailed implementation
     '''
     def add_proximity_factors(self, t0=0, t1=0, rad=2, nms=2, beta=0.25, thresh=16.0, remove=False):
         """ add edges to the factor graph based on distance """
 
-        # Step1: constructing 2D matrix to easily find nearby keyframes
+        # Step1: constructing 2D matrix to easily find nearby keyframes TODO print value of t
         t = self.video.counter.value
-        ix = torch.arange(t0, t)
-        jx = torch.arange(t1, t)
+        # In some cases, t0=t1=0, thus ix, jx and following ii, jj will be none TODO print shape
+        ix = torch.arange(t0, t) # 1D tensor (t-t0+1) [t0, t0+1, ..., t-1]
+        jx = torch.arange(t1, t) # 1D tensor (t-t1+1) [t1, t1+1, ..., t-1]
 
+        # ii - 2D tensor (t-t0, t-t1) - [t0,   t0, ..,  t0; t0+1, t0+1, ..., t0+1; t-1,  t-1, .., t-1]
+        # jj - 2D tensor (t-t1, t-t0) - [t1, t1+1, .., t-1;   t1, t1+1, ...,  t-1;  t1, t1+1, .., t-1]
         ii, jj = torch.meshgrid(ix, jx)
 
         # Step2: flatten the 2D matrix into 1D tensor
-        ii = ii.reshape(-1)
-        jj = jj.reshape(-1)
+        ii = ii.reshape(-1) # 1D tensor
+        jj = jj.reshape(-1) # 1D tensor
 
         # Step3: compute frame distance based on optical flow value
-        d = self.video.distance(ii, jj, beta=beta) # shape of d: (N, N)
-        d[ii - rad < jj] = np.inf
-        d[d > 100] = np.inf
+        # shape of d: (N, N) if ii=none else 1D tensor - ii.size(0)
+        # For backend, d is 1D tensor;
+        # For fronend, d is 1D tensor in initialization, and 2D tensor in tracking.
+        d = self.video.distance(ii, jj, beta=beta)
+        d[ii - rad < jj] = np.inf # TODO invalidify what?
+        d[d > 100] = np.inf       # invalidify too large depth (TODO too close?)
 
         # Step4: suppress neighboring edges within a predefined distance threshold
         # TODO why include bad and inactive factors?
-        ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0) # bad and inactive factors
+        ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0) # concat using the first dim -> 1D tensor
         jj1 = torch.cat([self.jj, self.jj_bad, self.jj_inac], 0)
+        # TODO understand detailed logic for this part
         for i, j in zip(ii1.cpu().numpy(), jj1.cpu().numpy()):
             for di in range(-nms, nms+1):
                 for dj in range(-nms, nms+1):
@@ -398,12 +405,13 @@ class FactorGraph:
 
         # Step5: add temporally adjacent keyframes to factor graph
         # TODO es - why es is empty if enable backend? detailed investigation
-        es = []
+        es = [] # shape - [N, 2]
         for i in range(t0, t):
             if self.video.stereo:
                 es.append((i, i))
                 d[(i-t0)*(t-t1) + (i-t1)] = np.inf
 
+            # TODO this part seems to append sth for sure?
             for j in range(max(i-rad-1,0), i):
                 es.append((i,j))
                 es.append((j,i))
@@ -444,7 +452,7 @@ class FactorGraph:
         #      es is empty if backend is enabled?
         # torch.as_tensor - converts data into a tensor
         # unbind - removes a tensor dimension (the last dim)
-        # es - [[i1,j1], [j1,i1], .., [in,jn], [jn,in]]
+        # es - [[i1,j1], [j1,i1], .., [in,jn], [jn,in]] : 2D tensor [N, 2]
         # ii - [i1, j1, ..., in, jn]; jj - [j1, i1, ..., jn, in] : both 1D tensors
         ii, jj = torch.as_tensor(es, device=self.device).unbind(dim=-1)
         self.add_factors(ii, jj, remove)
