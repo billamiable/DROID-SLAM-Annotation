@@ -364,33 +364,37 @@ class FactorGraph:
     def add_proximity_factors(self, t0=0, t1=0, rad=2, nms=2, beta=0.25, thresh=16.0, remove=False):
         """ add edges to the factor graph based on distance """
 
-        # Step1: constructing 2D matrix to easily find nearby keyframes TODO print value of t
-        t = self.video.counter.value
-        # In some cases, t0=t1=0, thus ix, jx and following ii, jj will be none TODO print shape
+        # Step1: constructing 2D matrix to easily find nearby keyframes
+        t = self.video.counter.value # for backend, t=1
+        # In some cases, t0=t1=0, thus ix, jx and following ii, jj will be none
         ix = torch.arange(t0, t) # 1D tensor (t-t0+1) [t0, t0+1, ..., t-1]
         jx = torch.arange(t1, t) # 1D tensor (t-t1+1) [t1, t1+1, ..., t-1]
 
         # ii - 2D tensor (t-t0, t-t1) - [t0,   t0, ..,  t0; t0+1, t0+1, ..., t0+1; t-1,  t-1, .., t-1]
         # jj - 2D tensor (t-t1, t-t0) - [t1, t1+1, .., t-1;   t1, t1+1, ...,  t-1;  t1, t1+1, .., t-1]
-        ii, jj = torch.meshgrid(ix, jx)
+        # using printing, found that meshgrid is perfect to create correspondence pairs
+        ii, jj = torch.meshgrid(ix, jx) # for backend, [[0]] for ii and jj
 
         # Step2: flatten the 2D matrix into 1D tensor
+        # for backend, [0] for ii and jj
         ii = ii.reshape(-1) # 1D tensor
         jj = jj.reshape(-1) # 1D tensor
 
         # Step3: compute frame distance based on optical flow value
         # shape of d: (N, N) if ii=none else 1D tensor - ii.size(0)
-        # For backend, d is 1D tensor;
+        # For backend, d is 1D tensor, for example, [2.3606e-07];
+        # TODO d is defined in device='cuda:0'?? maybe just copy to cuda:1
         # For fronend, d is 1D tensor in initialization, and 2D tensor in tracking.
         d = self.video.distance(ii, jj, beta=beta)
-        d[ii - rad < jj] = np.inf # TODO invalidify what?
+        d[ii - rad < jj] = np.inf # TODO invalidify what? d will be inf..
         d[d > 100] = np.inf       # invalidify too large depth (TODO too close?)
 
         # Step4: suppress neighboring edges within a predefined distance threshold
         # TODO why include bad and inactive factors?
+        # for backend, ii1 and jj1 are [], device='cuda:1'
         ii1 = torch.cat([self.ii, self.ii_bad, self.ii_inac], 0) # concat using the first dim -> 1D tensor
         jj1 = torch.cat([self.jj, self.jj_bad, self.jj_inac], 0)
-        # TODO understand detailed logic for this part
+        # TODO this part operates on existing edges in the factor graph
         for i, j in zip(ii1.cpu().numpy(), jj1.cpu().numpy()):
             for di in range(-nms, nms+1):
                 for dj in range(-nms, nms+1):
@@ -404,14 +408,13 @@ class FactorGraph:
                             d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
         # Step5: add temporally adjacent keyframes to factor graph
-        # TODO es - why es is empty if enable backend? detailed investigation
         es = [] # shape - [N, 2]
         for i in range(t0, t):
             if self.video.stereo:
                 es.append((i, i))
                 d[(i-t0)*(t-t1) + (i-t1)] = np.inf
 
-            # TODO this part seems to append sth for sure?
+            # range(0,0) returns none
             for j in range(max(i-rad-1,0), i):
                 es.append((i,j))
                 es.append((j,i))
@@ -422,6 +425,7 @@ class FactorGraph:
         ix = torch.argsort(d)
         for k in ix:
             # TODO this threshold seems large
+            # item in d already sets to inf, therefore directly return here
             if d[k].item() > thresh:
                 continue
 
@@ -432,7 +436,7 @@ class FactorGraph:
             i = ii[k]
             j = jj[k]
             
-            # TODO why bidirectional?
+            # append bidirectional to prepare outputs for ii and jj
             es.append((i, j))
             es.append((j, i))
 
@@ -448,8 +452,11 @@ class FactorGraph:
                             d[(i1-t0)*(t-t1) + (j1-t1)] = np.inf
 
         # Step7: post-processing of index pairs and add corresponding edges to factor graph
-        # TODO undestand why enable backend in a separate thread will fail
-        #      es is empty if backend is enabled?
+        '''
+            The reason why failing when enable backend during inference is because es is empty
+            this happens at the first time of calling droid_backend() since no existing edges in graph
+            Solution: avoid calling driod_backend() at the very start, use video.counter.value to determine the timing
+        '''
         # torch.as_tensor - converts data into a tensor
         # unbind - removes a tensor dimension (the last dim)
         # es - [[i1,j1], [j1,i1], .., [in,jn], [jn,in]] : 2D tensor [N, 2]
