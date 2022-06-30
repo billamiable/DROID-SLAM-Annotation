@@ -78,6 +78,7 @@ class FactorGraph:
         self.rm_factors(mask, store=False)
 
     def clear_edges(self):
+        """ clear factor graph - used after backend finished """
         self.rm_factors(self.ii >= 0)
         self.net = None
         self.inp = None

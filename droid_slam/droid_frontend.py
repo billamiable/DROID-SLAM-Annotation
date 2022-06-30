@@ -62,11 +62,7 @@ class DroidFrontend:
         for itr in range(self.iters1):
             self.graph.update(None, None, use_inactive=True)
 
-        '''
-            Initial Pose Estimation
-                TODO Directly use pose from last frame or apply motion model?
-        '''
-        # Step5: set initial pose for next frame
+        # Step5: set initial pose for next frame TODO this not used?
         poses = SE3(self.video.poses)
 
         # Step6: remove redundant keyframes according to distance or update graph
@@ -89,6 +85,11 @@ class DroidFrontend:
             for itr in range(self.iters2):
                 self.graph.update(None, None, use_inactive=True)
 
+        '''
+            Initial Pose Estimation
+                TODO Directly use pose from last frame or apply motion model?
+                     seems to be the former one
+        '''
         # Step8: set pose for next iteration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
@@ -145,7 +146,7 @@ class DroidFrontend:
     def __call__(self):
         """ main update """
 
-        # Step1: do initialization
+        # Step1: do initialization before warmup (15 kf for euroc) is finished
         if not self.is_initialized and self.video.counter.value == self.warmup:
             self.__initialize()
             

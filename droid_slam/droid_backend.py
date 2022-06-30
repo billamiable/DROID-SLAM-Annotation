@@ -22,7 +22,6 @@ class DroidBackend:
         self.backend_nms = args.backend_nms
         
     @torch.no_grad()
-    # TODO another reason for failure maybe default steps is too large
     def __call__(self, steps=12):
         """ main update """
 
@@ -48,6 +47,6 @@ class DroidBackend:
         # Step4: TODO update graph using reduced memory implementation
         graph.update_lowmem(steps=steps)
 
-        # Step5: post-processing after global optimization
+        # Step5: post-processing after global optimization TODO dirty?
         graph.clear_edges()
         self.video.dirty[:t] = True

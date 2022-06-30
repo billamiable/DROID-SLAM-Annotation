@@ -134,6 +134,7 @@ class DepthVideo:
         """ normalize depth and poses """
 
         with self.get_lock():
+            # apply scale transform to pose and inverse depth
             s = self.disps[:self.counter.value].mean()
             self.disps[:self.counter.value] /= s
             self.poses[:self.counter.value,:3] *= s

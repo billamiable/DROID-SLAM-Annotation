@@ -76,7 +76,7 @@ class MotionFilter:
                     Flow-based method to determine if a frame is set as keyframe
                     If condition not satisfied then the incoming frame won't be processed in the frontend
             '''
-            # Step6: check motion magnitue / add new frame to video
+            # Step6: check motion magnitue / add new frame to video TODO why use delta to determine?
             if delta.norm(dim=-1).mean().item() > self.thresh:
                 self.count = 0
                 net, inp = self.__context_encoder(inputs[:,[0]])
