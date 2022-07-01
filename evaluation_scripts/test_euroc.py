@@ -125,6 +125,7 @@ if __name__ == '__main__':
     from evo.tools import file_interface
     from evo.core import sync
     import evo.main_ape as main_ape
+    from evo.common_ape_rpe import plot_result
     from evo.core.metrics import PoseRelation
 
     images_list = sorted(glob.glob(os.path.join(args.datapath, 'mav0/cam0/data/*.png')))
@@ -141,6 +142,9 @@ if __name__ == '__main__':
 
     result = main_ape.ape(traj_ref, traj_est, est_name='traj', 
         pose_relation=PoseRelation.translation_part, align=True, correct_scale=True)
+
+    # plot_result(result, traj_ref, result.trajectories['traj'], traj_ref_full=traj_ref)
+    file_interface.save_res_file('result.zip', result)
 
     print(result)
 
